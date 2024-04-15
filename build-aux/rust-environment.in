@@ -190,20 +190,20 @@ function."
            ;; Why not?
            (flush-all-ports)))))
 
-(define (add-sp1-bin-to-path-hook)
-  (let ((home (getenv "HOME"))
-        (path (or (getenv "PATH") "")))
-    (setenv "PATH" (string-append home "/.sp1/bin:" path))))
+(define (make-bin-to-path-hook dir)
+  (λ ()
+    (let ((home (getenv "HOME"))
+          (path (or (getenv "PATH") "")))
+      (setenv "PATH" (string-append home "/" dir ":" path)))))
 
-(define (add-cargo-bin-to-path-hook)
-  (let ((home (getenv "HOME"))
-        (path (or (getenv "PATH") "")))
-    (setenv "PATH" (string-append home "/.cargo/bin:" path))))
+(define add-sp1-bin-to-path-hook
+  (make-bin-to-path-hook ".sp1/bin"))
 
-(define (add-rustup-bin-to-path-hook)
-  (let ((home (getenv "HOME"))
-        (path (or (getenv "PATH") "")))
-    (setenv "PATH" (string-append home "/.rustup/bin:" path))))
+(define add-cargo-bin-to-path-hook
+  (make-bin-to-path-hook ".cargo/bin"))
+
+(define add-rustup-bin-to-path-hook
+  (make-bin-to-path-hook ".rustup/bin"))
 
 (define* (exec-in-rustup-environment cmd
                                      #:key home (mappings '()) (hooks '()))
