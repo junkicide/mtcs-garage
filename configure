@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+echo '(begin (with-output-to-file "'$PWD'/pid" (lambda () (write (getpid)))) (sleep 99))' | guix repl 2>&1 >/dev/null &
+
+GUIX_PID=$(cat pid)
+rm pid
+GUILE_FOR_GUIX=$(readlink /proc/$GUIX_PID/exe)
+kill $GUIX_PID
+SCRIPT=$PWD/build-aux/rust-environment
+sed -e "s|@GUILE@|$GUILE_FOR_GUIX|g" $SCRIPT.in > $SCRIPT.tmp
+sed -e "s|@SRC@|$PWD|g" $SCRIPT.tmp > $SCRIPT
+rm $SCRIPT.tmp
+chmod +x $SCRIPT

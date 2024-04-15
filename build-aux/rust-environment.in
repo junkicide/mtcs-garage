@@ -1,0 +1,322 @@
+#!@GUILE@ \
+--no-auto-compile -e main -s
+!#
+
+(define-syntax-rule (push! elt v) (set! v (cons elt v)))
+
+(define (augment-load-paths!)
+  ;; Add installed modules to load-path.
+  (push! "/usr/local/share/guile/site/3.0" %load-path)
+  (push! "/usr/local/lib/guile/3.0/site-ccache" %load-compiled-path))
+
+(unless (getenv "GUIX_UNINSTALLED")
+  (augment-load-paths!))
+
+(bindtextdomain "guix" "/usr/local/share/locale")
+(bindtextdomain "guix-packages" "/usr/local/share/locale")
+((@@ (guix ui) initialize-guix))
+
+(use-modules
+ (gnu packages)
+ (gnu packages base)
+ (gnu packages bash)
+ (gnu packages curl)
+ (gnu packages certs)
+ (gnu packages gawk)
+ (gnu packages tls)
+ (gnu packages pkg-config)
+ (gnu packages version-control)
+ (gnu packages gcc)
+ (gnu packages glib)
+ (gnu packages commencement)
+ (gnu packages compression)
+ (gnu system file-systems)
+ (guix build utils)
+ (guix download)
+ (guix modules)
+ (guix git-download)
+ ((guix licenses) #:prefix license:)
+ (guix derivations)
+ (guix packages)
+ (guix profiles)
+ (guix utils)
+ (guix gexp)
+ (guix monads)
+ (guix store)
+ (ice-9 match)
+ (srfi srfi-1))
+
+(reload-module (resolve-module '(guix scripts environment)))
+
+(define directory-files (@@ (ice-9 ftw) directory-files))
+(define setup-fhs (@@ (guix scripts environment) setup-fhs))
+(define launch-environment/container (@@ (guix scripts environment)
+                                         launch-environment/container))
+
+(define environment-dir
+  (let ((csd "@SRC@"))
+    (unless csd
+      (display "Unknown source-directory. This is not meant to be imported in REPL.")
+      (exit 1))
+    (string-append csd "/.guix-environment")))
+
+(define environment-home
+  (string-append environment-dir "/home"))
+
+(define environment-profile
+  (string-append environment-dir "/profile"))
+
+(define (ensure-environment-dir)
+  (mkdir-p environment-home)
+  (mkdir-p environment-profile))
+
+(define rustup-origin
+  (let* ((name "rustup")
+         (commit "f26d16b3b940bfb7b5e5aad7ee8f7121569f1d60")
+         (revision "0")
+         (version (git-version "1.27.0" revision commit)))
+    (origin
+      (method git-fetch)
+      (uri (git-reference
+            (url "https://github.com/rust-lang/rustup")
+            (commit commit)))
+      (file-name (git-file-name name version))
+      (sha256
+       (base32 "12km4wmm7z6s6c5xkkw13z5f4l0jf0c1axsn6zvh8b6z2isa8hnh")))))
+
+(define sp1-origin
+  (let* ((name "sp1")
+         (commit "97808d00b4876b645448118832f30f144510b774")
+         (revision "0")
+         (version (git-version "0.0.2" revision commit)))
+    (origin
+      (method git-fetch)
+      (uri (git-reference
+            (url "https://github.com/succinctlabs/sp1")
+            (commit commit)))
+      (file-name (git-file-name name version))
+      (sha256
+       (base32 "0dij02sranwagdk33lf4bs0rizr8qsahrnnmga7qvh0bl76kvw7y"))
+      (snippet
+       #~(begin
+           (use-modules (guix build utils))
+           (chmod "sp1up/install" #o755)
+           (chmod "sp1up/sp1up" #o755))))))
+
+(define rustup-init-script-derivation
+  (let ((file "rustup-init.sh"))
+    (computed-file
+     file
+     (with-imported-modules '((guix build utils))
+       #~(begin (use-modules (guix build utils))
+                (let ((bin (string-append  #$output "/bin")))
+                  (mkdir-p bin)
+                  (symlink (string-append #$rustup-origin "/" #$file)
+                           (string-append bin "/" #$file))))))))
+
+(define sp1up-init-script-derivation
+  (computed-file
+   "sp1up"
+   (with-imported-modules '((guix build utils))
+     #~(begin (use-modules (guix build utils))
+              (let ((bin (string-append  #$output "/bin")))
+                (mkdir-p bin)
+                (symlink (string-append #$sp1-origin "/sp1up/install")
+                         (string-append bin "/install"))
+                (symlink (string-append #$sp1-origin "/sp1up/sp1up")
+                         (string-append bin "/sp1up")))))))
+
+(define rustup-environment-manifest
+  (manifest-add
+   (packages->manifest
+    (list glibc-for-fhs ;; has to be first
+          (list (@@ (gnu packages gcc) gcc) "lib")
+          gcc-toolchain
+          coreutils
+          curl
+          grep
+          nss-certs
+          zlib ;; zlib is needed for rustc not for install
+          git ;; for risc0 install and sp1
+          sed gawk gnu-make ;; for protobuf compilation :/
+          openssl pkg-config ;; for a lost cause
+          bash tar gzip)) ;; for sp1
+   (list
+    (manifest-entry
+      (name (origin-file-name rustup-origin))
+      (version (substring (git-reference-commit
+                           (origin-uri rustup-origin))
+                          0 7))
+      (item rustup-init-script-derivation))
+    (manifest-entry
+      (name (origin-file-name sp1-origin))
+      (version (substring (git-reference-commit
+                           (origin-uri sp1-origin))
+                          0 7))
+      (item sp1up-init-script-derivation)))))
+
+;; TODO This is ridiculous.  Should get rid of it somehow.
+(define (call-with-guix-shell-hacks proc)
+  "Overcome several pitfails calling launch-environment/container procedure we
+aren't supposed to.  PROC is passed curried launch-environment/container
+function."
+  (let* ((tcgrp (catch 'system-error
+                  ;; catching ioctl for some types of prompts.
+                  (λ () (tcgetpgrp (current-input-port)))
+                  (const #f))))
+    ;; During launch-environment/container fork happens at least once. For
+    ;; some reason when child exits this process receives SIGTTOU and SIGTTIN
+    ;; signals which put it to wait. Looks like a side-effect of hacks inside
+    ;; script folder or linux-container module.
+    (sigaction SIGTTOU SIG_IGN)
+    (sigaction SIGTTIN SIG_IGN)
+    (match (primitive-fork)
+      (0
+       (catch 'system-error
+         proc
+         (λ args
+           (format (current-error-port)
+                   "error: ~a" (strerror (system-error-errno args))))))
+      (pid (waitpid pid)
+           ;; Again, maybe because of guix shell hacks or because of hacks
+           ;; to make guix shell importable (eg ignoring signals) group ID
+           ;; for the terminal used by input port changed after child
+           ;; exits.  That causes input/output error when we jump back to
+           ;; the prompt.
+           (when tcgrp
+             ;; only setting it back when there were no ioctl error (see let*
+             ;; form above)
+             (tcsetpgrp (current-input-port) tcgrp))
+           ;; Why not?
+           (flush-all-ports)))))
+
+(define (add-sp1-bin-to-path-hook)
+  (let ((home (getenv "HOME"))
+        (path (or (getenv "PATH") "")))
+    (setenv "PATH" (string-append home "/.sp1/bin:" path))))
+
+(define (add-cargo-bin-to-path-hook)
+  (let ((home (getenv "HOME"))
+        (path (or (getenv "PATH") "")))
+    (setenv "PATH" (string-append home "/.cargo/bin:" path))))
+
+(define (add-rustup-bin-to-path-hook)
+  (let ((home (getenv "HOME"))
+        (path (or (getenv "PATH") "")))
+    (setenv "PATH" (string-append home "/.rustup/bin:" path))))
+
+(define* (exec-in-rustup-environment cmd
+                                     #:key home (mappings '()) (hooks '()))
+  (let* ((mappings (append (if home
+                               (list (file-system-mapping
+                                      (source home)
+                                      (target "/home/rustup")
+                                      (writable? #t)))
+                               '())
+                           mappings)))
+    (call-with-guix-shell-hacks
+     (λ ()
+       (with-store store
+         (run-with-store store
+           (mlet* %store-monad ((bash (package->derivation bash))
+                                (profile (profile-derivation
+                                          rustup-environment-manifest)))
+             (mbegin %store-monad
+               (built-derivations (list bash profile))
+               (let ((bash-binary (string-append (derivation->output-path bash)
+                                                 "/bin/sh"))
+                     (profile-dir (derivation->output-path profile)))
+                 (launch-environment/container
+                  #:command cmd
+                  #:bash bash-binary
+                  #:user "rustup"
+                  #:user-mappings mappings
+                  #:profile profile-dir
+                  #:manifest rustup-environment-manifest
+                  #:link-profile? #f
+                  #:network? #t
+                  #:map-cwd? #f
+                  #:emulate-fhs? #t
+                  #:nesting? #f
+                  #:setup-hook (λ (profile)
+                                 (setup-fhs profile)
+                                 (add-rustup-bin-to-path-hook)
+                                 (add-cargo-bin-to-path-hook)
+                                 (add-sp1-bin-to-path-hook)
+                                 (for-each
+                                  (λ (hook) (hook profile))
+                                  hooks))))))))))))
+
+(define (rustup-initialized?)
+  ;; TODO run cargo --version and capture output instead
+  (directory-exists? (and (string-append environment-home "/.cargo")
+                          (string-append environment-home "/.rustup"))))
+
+(define* (init-rustup-environment #:optional home)
+  (ensure-environment-dir)
+  (exec-in-rustup-environment '("rustup-init.sh" "-q" "-y") #:home home))
+
+(define* (init-sp1-environment #:optional home)
+  ;; TODO Enable gracefully failing early
+  (exec-in-rustup-environment '("install") #:home home)
+  (exec-in-rustup-environment '("sp1up") #:home home))
+
+(define* (rustup-add-src-tools #:optional home)
+  (exec-in-rustup-environment '("rustup" "component" "add" "rust-src") #:home home)
+  (exec-in-rustup-environment '("rustup" "component" "add" "rust-analyzer") #:home home))
+
+(define* (run-rust-analyzer #:optional home)
+  (exec-in-rustup-environment '("rust-analyzer") #:home home))
+
+(define* (launch-rustup-environment-shell)
+  ;; TODO create predicate procedure for checking if binstall and risczero has
+  ;; been installed
+  (exec-in-rustup-environment
+   '("/bin/sh")
+   #:home environment-home
+   #:mappings (list
+               (file-system-mapping
+                (source "@SRC@")
+                (target "/home/rustup/src")
+                (writable? #t)))))
+
+(define* (main #:optional (args (command-line)))
+
+  (define (help)
+    (display "\
+    Rust environment -- automation script for installing an Linux container \
+isolated rust development environment and running auxiliary commands inside \
+it using Guix.
+
+rust-environment init rustup
+    Install rustup in an isolated environment.
+    `.guix-environment/home' is going to be mounted as container home.
+    `.guix-environment/profile' is a link to the Guix profile.
+rust-environment init sp1
+    Install sp1 toolchain to with cargo.
+rust-environment init all
+    Shorthand for `rust-environment init rustup && rust-environment init \
+risczero'.
+rust-environment shell
+     Spawn shell inside rust environment. current source tree will be \
+mounted in `$HOME/src'.
+rust-environment build
+     run `cargo build' in source directory ($HOME/src).
+rust-environment rust-analyzer
+     Not implemented
+"))
+
+  (match (cdr args)
+    (() (help))
+    (("init" "rustup") (init-rustup-environment environment-home))
+    (("init" "sp1") (init-sp1-environment environment-home))
+    (("init" "lsp") (rustup-add-src-tools environment-home))
+    (("lsp") (run-rust-analyzer environment-home))
+    (("shell") (launch-rustup-environment-shell))
+    (else (begin (display "Provided arguments are wrong:")
+                 (write args) (newline)
+                 (help)))))
+
+;;; Local Variables:
+;;; mode: scheme
+;;; End:
