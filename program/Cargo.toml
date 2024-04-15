@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "mtcs-sp1-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+mtcs-core = {path = "../core"}
+rs_merkle = "1.4.2"
+bincode = "1.3.3"
