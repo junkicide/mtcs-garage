@@ -1534,9 +1534,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mtcs-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "mtcs-sp1-script"
 version = "0.1.0"
 dependencies = [
+ "bincode",
+ "hex",
+ "mtcs-core",
+ "rs_merkle",
+ "serde_json",
  "sp1-helper",
  "sp1-sdk",
 ]
@@ -2423,6 +2435,15 @@ dependencies = [
  "downcast-rs",
  "num_enum",
  "paste",
+]
+
+[[package]]
+name = "rs_merkle"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b241d2e59b74ef9e98d94c78c47623d04c8392abaf82014dfd372a16041128f"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]
