@@ -2,29 +2,29 @@
 // The ELF is used for proving and the ID is used for verification.
 use bincode::serialize;
 use mtcs_core::*;
-use std::fs;
+//use std::fs;
 
 use rs_merkle::{algorithms::Sha256 as MerkleSha256, Hasher, MerkleTree};
 use std::time::SystemTime;
 
-use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier, utils};
+use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     utils::setup_logger();
     let start_time = SystemTime::now();
-    
+
     println!("generating guest inputs...");
     // For example:
     let key: Vec<u8> = "passw0rdpassw0rdpassw0rdpassw0rd".as_bytes().to_vec();
 
     let secret = PrivateKey { key };
-   // let cycle_data: String =  fs::read_to_string("../cycle.json").unwrap();
-    
-   // let cycle: Cycle = serde_json::from_str(&cycle_file.to_owned()).expect("JSON not well formatted");
-//    let all_obligations: Vec<Obligation> =  serde_json::from_str("obligations.json").expect("JSON was not well-formatted");
-    
+    // let cycle_data: String =  fs::read_to_string("../cycle.json").unwrap();
+
+    // let cycle: Cycle = serde_json::from_str(&cycle_file.to_owned()).expect("JSON not well formatted");
+    //    let all_obligations: Vec<Obligation> =  serde_json::from_str("obligations.json").expect("JSON was not well-formatted");
+
     let cycle: Cycle = Cycle {
         setoff: 103,
         size: 3,

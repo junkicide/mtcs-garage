@@ -1,9 +1,10 @@
 #![no_main]
 
 use bincode::serialize;
+use ed25519_consensus::*;
 use mtcs_core::*;
+use rand::thread_rng;
 use rs_merkle::{algorithms::Sha256 as MerkleSha256, Hasher, MerkleProof};
-
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
@@ -49,7 +50,18 @@ pub fn main() {
         merkle_data.len
     ));
     println!("creating commitments for public data");
-    sp1_zkvm::io::commit(&cycle);
+
+    let (vk_bytes, sig) = {
+        // Generate a signing key and sign the message
+        let sk = SigningKey::new(thread_rng());
+        let sig = sk.sign(&bincode::serialize(&cycle).unwrap()[..]);
+
+        let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+
+        (vk_bytes, sig)
+    };
+    sp1_zkvm::io::commit(&vk_bytes);
+    sp1_zkvm::io::commit(&sig);
 }
 // TODO: for every edge involved in clearing, the total offsets of all cycles
 // passing through that edge should be less than the value of that edge
