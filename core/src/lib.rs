@@ -23,7 +23,7 @@ pub type Address = [u8; 20];
 pub struct Obligation {
     pub from: Address,
     pub to: Address,
-    pub value: u8,
+    pub value: u8, // TODO: make this u32 or higher
     pub salt: [u8; 32],
 }
 
@@ -35,9 +35,3 @@ pub struct Cycle {
     pub size: usize,
     pub obligations: ObligationList,
 }
-
-// #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-// pub struct SignedCommit {
-//     pub message: Digest,
-//     pub sign: Digest,
-// }

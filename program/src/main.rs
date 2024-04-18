@@ -4,7 +4,7 @@ use bincode::serialize;
 use ed25519_consensus::*;
 use mtcs_core::*;
 use rand::thread_rng;
-use rs_merkle::{algorithms::Sha256 as MerkleSha256, Hasher, MerkleProof};
+use rs_merkle::{algorithms::Sha256, Hasher, MerkleProof};
 sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
@@ -32,7 +32,7 @@ pub fn main() {
 
     let to = &cycle.obligations.iter().fold(from, |acc, x| {
         if &x.from == acc && &x.value >= &cycle.setoff {
-            leaves.push(MerkleSha256::hash(&serialize(&x).unwrap()));
+            leaves.push(Sha256::hash(&serialize(&x).unwrap()));
             &x.to
         } else {
             panic!("cycle invalid")
@@ -41,27 +41,27 @@ pub fn main() {
 
     assert_eq!(&from, to);
     let indexes = merkle_data.indexes;
-    let proof: MerkleProof<MerkleSha256> =
-        MerkleProof::<MerkleSha256>::try_from(proof.bytes).unwrap();
+    let proof: MerkleProof<Sha256> = MerkleProof::<Sha256>::try_from(proof.bytes).unwrap();
     assert!(proof.verify(
         merkle_data.merkle_root,
         &indexes,
         leaves.get(..).ok_or("couldn't fetch leaves").unwrap(),
         merkle_data.len
     ));
-    println!("creating commitments for public data");
+    println!("creating commitments for public data...");
 
-    let (vk_bytes, sig) = {
+    let message = {
+        let hashed_cycle = Sha256::hash(&serialize(&cycle).unwrap());
         // Generate a signing key and sign the message
         let sk = SigningKey::new(thread_rng());
-        let sig = sk.sign(&bincode::serialize(&cycle).unwrap()[..]);
+        let sig = sk.sign(&bincode::serialize(&hashed_cycle).unwrap()[..]);
 
         let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
 
-        (vk_bytes, sig)
+        (hashed_cycle, vk_bytes, sig)
     };
-    sp1_zkvm::io::commit(&vk_bytes);
-    sp1_zkvm::io::commit(&sig);
+
+    sp1_zkvm::io::commit(&message);
 }
 // TODO: for every edge involved in clearing, the total offsets of all cycles
 // passing through that edge should be less than the value of that edge
