@@ -22,111 +22,13 @@ fn main() {
     let secret = PrivateKey { key };
     let cycle_data: String = fs::read_to_string("../cycle.json").unwrap();
 
+    let all_obligation_data: String = fs::read_to_string("../obligations.json").unwrap();
+
     let cycle: Cycle =
         serde_json::from_str(&cycle_data.to_owned()).expect("JSON not well formatted");
-    //    let all_obligations: Vec<Obligation> =  serde_json::from_str("obligations.json").expect("JSON was not well-formatted");
 
-    // let cycle: Cycle = Cycle {
-    //     setoff: 103,
-    //     size: 3,
-    //     obligations: vec![
-    //         Obligation {
-    //             from: hex::decode("9BA1Bcd88E99d6E1E03252A70A63FEa83Bf1208c")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-    //             to: hex::decode("6FF840eeeFFec0C35F52bB6031a9Ae34524a05b6")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-    //             value: 103,
-    //             salt: [
-    //                 134, 104, 222, 91, 13, 97, 183, 43, 190, 29, 199, 203, 206, 17, 241, 117, 145,
-    //                 238, 154, 201, 79, 48, 188, 175, 205, 156, 218, 223, 93, 208, 253, 13,
-    //             ],
-    //         },
-    //         Obligation {
-    //             from: hex::decode("6FF840eeeFFec0C35F52bB6031a9Ae34524a05b6")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-    //             to: hex::decode("42cEDde51198D1773590311E2A340DC06B24cB37")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-    //             value: 197,
-    //             salt: [
-    //                 47, 45, 177, 118, 3, 36, 136, 70, 238, 148, 143, 56, 140, 115, 20, 16, 235,
-    //                 102, 188, 236, 119, 192, 25, 103, 197, 72, 237, 170, 40, 203, 125, 227,
-    //             ],
-    //         },
-    //         Obligation {
-    //             from: hex::decode("42cEDde51198D1773590311E2A340DC06B24cB37")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-
-    //             to: hex::decode("9BA1Bcd88E99d6E1E03252A70A63FEa83Bf1208c")
-    //                 .expect("Decoding failed")
-    //                 .try_into()
-    //                 .unwrap(),
-    //             value: 252,
-    //             salt: [
-    //                 10, 136, 55, 248, 203, 115, 181, 120, 254, 162, 89, 219, 109, 241, 31, 169,
-    //                 203, 202, 197, 34, 2, 240, 234, 36, 28, 103, 3, 184, 190, 156, 151, 252,
-    //             ],
-    //         },
-    //     ],
-    // };
-
-    let all_obligations: Vec<Obligation> = vec![
-        Obligation {
-            from: hex::decode("9BA1Bcd88E99d6E1E03252A70A63FEa83Bf1208c")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-            to: hex::decode("6FF840eeeFFec0C35F52bB6031a9Ae34524a05b6")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-            value: 103,
-            salt: [
-                134, 104, 222, 91, 13, 97, 183, 43, 190, 29, 199, 203, 206, 17, 241, 117, 145, 238,
-                154, 201, 79, 48, 188, 175, 205, 156, 218, 223, 93, 208, 253, 13,
-            ],
-        },
-        Obligation {
-            from: hex::decode("6FF840eeeFFec0C35F52bB6031a9Ae34524a05b6")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-            to: hex::decode("42cEDde51198D1773590311E2A340DC06B24cB37")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-            value: 197,
-            salt: [
-                47, 45, 177, 118, 3, 36, 136, 70, 238, 148, 143, 56, 140, 115, 20, 16, 235, 102,
-                188, 236, 119, 192, 25, 103, 197, 72, 237, 170, 40, 203, 125, 227,
-            ],
-        },
-        Obligation {
-            from: hex::decode("42cEDde51198D1773590311E2A340DC06B24cB37")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-
-            to: hex::decode("9BA1Bcd88E99d6E1E03252A70A63FEa83Bf1208c")
-                .expect("Decoding failed")
-                .try_into()
-                .unwrap(),
-            value: 252,
-            salt: [
-                10, 136, 55, 248, 203, 115, 181, 120, 254, 162, 89, 219, 109, 241, 31, 169, 203,
-                202, 197, 34, 2, 240, 234, 36, 28, 103, 3, 184, 190, 156, 151, 252,
-            ],
-        },
-    ];
+    let all_obligations: ObligationList =
+        serde_json::from_str(&all_obligation_data.to_owned()).expect("JSON not well formatted");
 
     let mut indexes: Vec<usize> = Vec::new();
     cycle.obligations.iter().for_each(|&i| {
