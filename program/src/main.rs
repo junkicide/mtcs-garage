@@ -3,7 +3,6 @@
 use bincode::serialize;
 use ed25519_consensus::*;
 use mtcs_core::*;
-use rand::thread_rng;
 use rs_merkle::{algorithms::Sha256, Hasher, MerkleProof};
 sp1_zkvm::entrypoint!(main);
 
@@ -11,7 +10,7 @@ pub fn main() {
     println!("reading inputs into guest...");
 
     let cycle: Cycle = sp1_zkvm::io::read::<Cycle>();
-    let _secret: PrivateKey = sp1_zkvm::io::read::<PrivateKey>();
+    let key: SigningKey = sp1_zkvm::io::read::<SigningKey>();
     let proof: Proof = sp1_zkvm::io::read::<Proof>();
     let merkle_data: MerkleData = sp1_zkvm::io::read::<MerkleData>();
     assert_eq!(
@@ -53,15 +52,16 @@ pub fn main() {
     let message = {
         let hashed_cycle = Sha256::hash(&serialize(&cycle).unwrap());
         // Generate a signing key and sign the message
-        let sk = SigningKey::new(thread_rng());
-        let sig = sk.sign(&bincode::serialize(&hashed_cycle).unwrap()[..]);
 
-        let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+        let sig = key.sign(&bincode::serialize(&hashed_cycle).unwrap()[..]);
+
+        let vk_bytes: [u8; 32] = VerificationKey::from(&key).into();
 
         (hashed_cycle, vk_bytes, sig)
     };
 
     sp1_zkvm::io::commit(&message);
+    println!("cryptography magic happening...")
 }
 // TODO: for every edge involved in clearing, the total offsets of all cycles
 // passing through that edge should be less than the value of that edge

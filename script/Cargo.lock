@@ -2243,6 +2243,7 @@ dependencies = [
  "ed25519-consensus",
  "hex",
  "mtcs-core",
+ "rand",
  "rs_merkle",
  "serde_json",
  "sp1-helper",
